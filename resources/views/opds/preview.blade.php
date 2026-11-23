@@ -5,6 +5,13 @@
 
 @section('content')
 
+@if($errors->has('import'))
+    <div class="alert alert-danger" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        {{ $errors->first('import') }}
+    </div>
+@endif
+
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
         <li class="breadcrumb-item">
@@ -192,13 +199,34 @@
 
         <hr>
 
-        <div class="d-flex justify-content-end gap-2">
+
+        <div class="d-flex justify-content-end gap-2 flex-wrap">
+
             <a href="{{ route('opds.import.create') }}"
-               class="btn btn-secondary">
+            class="btn btn-secondary">
                 <i class="bi bi-arrow-left me-1"></i>
                 Upload Ulang
             </a>
-        </div>
+
+            <form action="{{ route('opds.import.confirm') }}"
+                method="POST"
+                onsubmit="return confirm('Yakin ingin menyimpan 61 data OPD ke database MySQL? Pastikan seluruh data preview sudah benar.');">
+
+                @csrf
+
+                <button type="submit"
+                        class="btn btn-success"
+                        @disabled($stats['total'] !== 61 || $stats['error'] > 0 || $stats['review'] > 0)>
+
+                    <i class="bi bi-database-check me-1"></i>
+                    Konfirmasi & Simpan 61 OPD
+
+                </button>
+
+            </form>
+
+</div>
+
 
     </div>
 </div>

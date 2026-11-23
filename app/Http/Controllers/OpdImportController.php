@@ -8,6 +8,8 @@ use App\Models\Opd;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Illuminate\Support\Facades\DB;
+
 
 class OpdImportController extends Controller
 {
@@ -324,5 +326,256 @@ public function preview(Request $request)
             ]);
     }
 }
+
+
+/**
+ * Konfirmasi dan simpan data OPD dari Excel.
+ *
+ * Khusus impor awal 61 OPD Kabupaten Indramayu.
+ * Tidak mengubah data lama dan tidak mengizinkan
+ * impor jika tabel opds sudah berisi data.
+ */
+public function confirm(Request $request)
+{
+    // 1. Ambil file upload dari session.
+    $path = $request->session()->get('opd_import_path');
+
+    if (
+        !$path ||
+        !Str::startsWith($path, 'imports/opds/') ||
+        !Storage::disk('local')->exists($path)
+    ) {
+        return redirect()
+            ->route('opds.import.create')
+            ->withErrors([
+                'file_excel' => 'File Excel tidak ditemukan. Silakan upload ulang.',
+            ]);
+    }
+
+    $spreadsheet = null;
+
+    try {
+        // 2. Pastikan database masih kosong.
+        if (Opd::query()->exists()) {
+            return redirect()
+                ->route('opds.import.preview')
+                ->withErrors([
+                    'import' => 'Import awal dibatalkan karena tabel OPD sudah berisi data.',
+                ]);
+        }
+
+        // 3. Baca ulang file Excel dari penyimpanan privat.
+        $file = Storage::disk('local')->path($path);
+
+        $reader = IOFactory::createReader('Xlsx');
+        $reader->setReadDataOnly(true);
+
+        $sheetNames = $reader->listWorksheetNames($file);
+
+        if (!in_array('Siap_Import', $sheetNames, true)) {
+            throw new \RuntimeException(
+                'Worksheet Siap_Import tidak ditemukan.'
+            );
+        }
+
+        $reader->setLoadSheetsOnly(['Siap_Import']);
+
+        $spreadsheet = $reader->load($file);
+        $sheet = $spreadsheet->getSheetByName('Siap_Import');
+
+        if (!$sheet) {
+            throw new \RuntimeException('Worksheet gagal dimuat.');
+        }
+
+        // 4. Validasi header pada baris 4.
+        $headers = [
+            'kode_opd',
+            'nama_opd',
+            'singkatan',
+            'alamat',
+            'is_active',
+        ];
+
+        foreach ($headers as $index => $header) {
+            $column = chr(65 + $index);
+
+            $actual = trim(
+                (string) $sheet->getCell($column . '4')->getValue()
+            );
+
+            if ($actual !== $header) {
+                throw new \RuntimeException(
+                    'Header Excel tidak sesuai pada kolom ' . $column
+                );
+            }
+        }
+
+        $lastRow = $sheet->getHighestDataRow();
+
+        if ($lastRow < 5 || $lastRow > 1004) {
+            throw new \RuntimeException(
+                'Jumlah baris Excel tidak valid.'
+            );
+        }
+
+        $excelRows = $sheet->rangeToArray(
+            'A5:E' . $lastRow,
+            null,
+            false,
+            false,
+            true
+        );
+
+        $data = [];
+        $seenCodes = [];
+        $seenNames = [];
+
+        // 5. Validasi setiap baris Excel.
+        foreach ($excelRows as $rowNumber => $row) {
+            $kode = trim((string) ($row['A'] ?? ''));
+            $nama = trim((string) ($row['B'] ?? ''));
+            $singkatan = trim((string) ($row['C'] ?? ''));
+            $alamat = trim((string) ($row['D'] ?? ''));
+            $status = trim((string) ($row['E'] ?? ''));
+
+            // Abaikan hanya baris yang seluruhnya kosong.
+            if (
+                $kode === '' &&
+                $nama === '' &&
+                $singkatan === '' &&
+                $alamat === '' &&
+                $status === ''
+            ) {
+                continue;
+            }
+
+            if (
+                $kode === '' ||
+                mb_strlen($kode) > 30 ||
+                $nama === '' ||
+                mb_strlen($nama) > 255 ||
+                mb_strlen($singkatan) > 50 ||
+                !in_array($status, ['0', '1'], true)
+            ) {
+                throw new \RuntimeException(
+                    'Data tidak valid pada baris ' . $rowNumber
+                );
+            }
+
+            $codeKey = Str::lower($kode);
+            $nameKey = Str::lower(
+                trim(preg_replace('/\s+/u', ' ', $nama))
+            );
+
+            if (
+                isset($seenCodes[$codeKey]) ||
+                isset($seenNames[$nameKey])
+            ) {
+                throw new \RuntimeException(
+                    'Duplikasi kode atau nama pada baris ' . $rowNumber
+                );
+            }
+
+            $seenCodes[$codeKey] = true;
+            $seenNames[$nameKey] = true;
+
+            $data[] = [
+                'kode_opd' => $kode,
+                'nama_opd' => $nama,
+                'singkatan' => $singkatan === '' ? null : $singkatan,
+                'alamat' => $alamat === '' ? null : $alamat,
+                'is_active' => (int) $status,
+            ];
+        }
+
+        // 6. Validasi khusus dataset awal Indramayu.
+        if (count($data) !== 61) {
+            throw new \RuntimeException(
+                'File harus berisi tepat 61 OPD.'
+            );
+        }
+
+        $aktif = collect($data)->where('is_active', 1)->count();
+        $nonaktif = collect($data)->where('is_active', 0)->count();
+
+        if ($aktif !== 60 || $nonaktif !== 1) {
+            throw new \RuntimeException(
+                'Jumlah status aktif/nonaktif tidak sesuai.'
+            );
+        }
+
+        // Pastikan hanya RSUD Sentot yang nonaktif.
+        $inactiveOpds = collect($data)
+            ->where('is_active', 0);
+
+        if (
+            $inactiveOpds->first()['nama_opd']
+            !== 'RSUD Pantura M.A. Sentot Patrol'
+        ) {
+            throw new \RuntimeException(
+                'OPD nonaktif harus RSUD Pantura M.A. Sentot Patrol.'
+            );
+        }
+
+        // Pastikan kode BKPSDM mengikuti Excel resmi.
+        $bkpsdm = collect($data)->firstWhere(
+            'kode_opd',
+            '5.03.5.04.0.00.01.0000'
+        );
+
+        if (
+            !$bkpsdm ||
+            $bkpsdm['singkatan'] !== 'BKPSDM'
+        ) {
+            throw new \RuntimeException(
+                'Kode BKPSDM tidak sesuai template sumber.'
+            );
+        }
+
+        // 7. Simpan semua baris dalam satu transaksi.
+        DB::transaction(function () use ($data) {
+
+            // Cek ulang di dalam transaksi.
+            if (Opd::query()->exists()) {
+                throw new \RuntimeException(
+                    'Tabel OPD sudah berisi data. Import dibatalkan.'
+                );
+            }
+
+            foreach ($data as $item) {
+                Opd::create($item);
+            }
+        });
+
+        // 8. Hapus file sementara setelah berhasil.
+        Storage::disk('local')->delete($path);
+        $request->session()->forget('opd_import_path');
+
+        return redirect()
+            ->route('opds.index')
+            ->with(
+                'success',
+                'Import berhasil! 61 data OPD telah disimpan ke database.'
+            );
+
+    } catch (\Throwable $e) {
+
+        Log::error('Gagal konfirmasi import OPD', [
+            'message' => $e->getMessage(),
+        ]);
+
+        return redirect()
+            ->route('opds.import.preview')
+            ->withErrors([
+                'import' => 'Import dibatalkan: ' . $e->getMessage(),
+            ]);
+
+    } finally {
+        if ($spreadsheet !== null) {
+            $spreadsheet->disconnectWorksheets();
+        }
+    }
+}
+
 
 }

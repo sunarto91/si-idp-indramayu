@@ -37,9 +37,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/opds/import', [OpdImportController::class, 'store'])
         ->name('opds.import.store');
     
-    // BARU: Preview data Excel
+    // Preview data Excel
     Route::get('/opds/import/preview', [OpdImportController::class, 'preview'])
         ->name('opds.import.preview');
+    
+    // Konfirmasi penyimpanan Excel ke MySQL
+    Route::post('/opds/import/confirm', [OpdImportController::class, 'confirm'])
+        ->name('opds.import.confirm');
 
     // Master OPD
     Route::resource('opds', OpdController::class);
