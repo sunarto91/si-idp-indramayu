@@ -25,13 +25,24 @@ class OpdController extends Controller
     // Menyimpan OPD baru
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'kode_opd' => 'required|string|max:30|unique:opds,kode_opd',
-            'nama_opd' => 'required|string|max:255',
-            'singkatan' => 'nullable|string|max:50',
-            'alamat' => 'nullable|string',
-            'is_active' => 'required|boolean',
-        ]);
+    $data = $request->validate([
+        'kode_opd' => 'required|string|max:30|unique:opds,kode_opd',
+        'nama_opd' => 'required|string|max:255',
+        'singkatan' => 'nullable|string|max:50',
+        'alamat' => 'nullable|string',
+        'is_active' => 'required|boolean',
+        ], [
+            'kode_opd.required' => 'Kode OPD wajib diisi.',
+            'kode_opd.unique' => 'Kode OPD sudah digunakan. Silakan masukkan kode yang berbeda.',
+            'kode_opd.max' => 'Kode OPD maksimal 30 karakter.',
+
+            'nama_opd.required' => 'Nama OPD wajib diisi.',
+            'nama_opd.max' => 'Nama OPD maksimal 255 karakter.',
+
+            'singkatan.max' => 'Singkatan maksimal 50 karakter.',
+            'is_active.required' => 'Status OPD wajib dipilih.',
+            'is_active.boolean' => 'Status OPD tidak valid.',
+    ]);
 
         Opd::create($data);
 
