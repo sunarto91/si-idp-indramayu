@@ -9,12 +9,47 @@ use Illuminate\Validation\Rule;
 class OpdController extends Controller
 {
     // Menampilkan daftar OPD
-    public function index()
-    {
-        $opds = Opd::orderBy('nama_opd')->paginate(10);
 
-        return view('opds.index', compact('opds'));
+    public function index(\Illuminate\Http\Request $request)
+    {
+        // Validasi parameter pencarian dan filter
+        $filters = $request->validate([
+            'search' => 'nullable|string|max:100',
+            'status' => 'nullable|in:0,1',
+        ]);
+
+        $search = trim($filters['search'] ?? '');
+        $status = $filters['status'] ?? '';
+
+        $query = \App\Models\Opd::query();
+
+        // Cari berdasarkan kode, nama, atau singkatan
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('kode_opd', 'like', '%' . $search . '%')
+                ->orWhere('nama_opd', 'like', '%' . $search . '%')
+                ->orWhere('singkatan', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Filter berdasarkan status aktif / nonaktif
+        if ($status !== '') {
+            $query->where('is_active', (int) $status);
+        }
+
+        // Urutkan data dan tampilkan 10 OPD per halaman
+        $opds = $query
+            ->orderBy('id', 'asc')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('opds.index', compact(
+            'opds',
+            'search',
+            'status'
+        ));
     }
+
 
     // Menampilkan formulir tambah OPD
     public function create()
@@ -25,13 +60,24 @@ class OpdController extends Controller
     // Menyimpan OPD baru
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'kode_opd' => 'required|string|max:30|unique:opds,kode_opd',
-            'nama_opd' => 'required|string|max:255',
-            'singkatan' => 'nullable|string|max:50',
-            'alamat' => 'nullable|string',
-            'is_active' => 'required|boolean',
-        ]);
+    $data = $request->validate([
+        'kode_opd' => 'required|string|max:30|unique:opds,kode_opd',
+        'nama_opd' => 'required|string|max:255',
+        'singkatan' => 'nullable|string|max:50',
+        'alamat' => 'nullable|string',
+        'is_active' => 'required|boolean',
+        ], [
+            'kode_opd.required' => 'Kode OPD wajib diisi.',
+            'kode_opd.unique' => 'Kode OPD sudah digunakan. Silakan masukkan kode yang berbeda.',
+            'kode_opd.max' => 'Kode OPD maksimal 30 karakter.',
+
+            'nama_opd.required' => 'Nama OPD wajib diisi.',
+            'nama_opd.max' => 'Nama OPD maksimal 255 karakter.',
+
+            'singkatan.max' => 'Singkatan maksimal 50 karakter.',
+            'is_active.required' => 'Status OPD wajib dipilih.',
+            'is_active.boolean' => 'Status OPD tidak valid.',
+    ]);
 
         Opd::create($data);
 
