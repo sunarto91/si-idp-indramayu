@@ -18,32 +18,49 @@
         </ol>
     </nav>
 
-    <!-- Judul halaman -->
-    <div class="d-flex flex-wrap justify-content-between
-                align-items-center gap-3 mb-4">
 
-        <div>
-            <h3 class="fw-bold mb-1">Master OPD</h3>
+<!-- Judul dan Tombol Aksi Master OPD -->
+<div class="d-flex justify-content-between
+            align-items-center flex-wrap gap-3 mb-4">
 
-            <p class="text-muted mb-0">
-                Data Organisasi Perangkat Daerah
-            </p>
-        </div>
+    <!-- Judul Halaman -->
+    <div>
+        <h3 class="fw-bold mb-1">
+            Master OPD
+        </h3>
+
+        <p class="text-muted mb-0">
+            Data Organisasi Perangkat Daerah
+        </p>
+    </div>
+
+    <!-- Tombol Aksi -->
+    <div class="d-flex flex-wrap gap-2">
 
         <a href="{{ route('opds.create') }}"
            class="btn btn-primary">
-
             <i class="bi bi-plus-circle me-1"></i>
             Tambah OPD
         </a>
 
         <a href="{{ route('opds.import.create') }}"
-        class="btn btn-success">
-            <i class="bi bi-file-earmark-excel me-1"></i>
+           class="btn btn-success">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>
             Import Excel
         </a>
 
+        <a href="{{ route('opds.export', [
+            'search' => $search ?? '',
+            'status' => $status ?? '',
+        ]) }}"
+           class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>
+            Export Excel
+        </a>
+
     </div>
+</div>
+
 
     <!-- Pesan keberhasilan -->
     @if(session('success'))
@@ -120,6 +137,84 @@
         </div>
 
         <div class="card-body">
+
+
+<!-- Form Pencarian dan Filter OPD -->
+<form action="{{ route('opds.index') }}"
+      method="GET"
+      class="mb-4">
+
+    <div class="row g-3 align-items-end">
+
+        <!-- Pencarian -->
+        <div class="col-md-6">
+            <label for="search"
+                   class="form-label fw-semibold">
+                Cari OPD
+            </label>
+
+            <input type="text"
+                   id="search"
+                   name="search"
+                   class="form-control"
+                   placeholder="Cari kode, nama, atau singkatan OPD..."
+                   value="{{ $search ?? '' }}"
+                   maxlength="100">
+        </div>
+
+        <!-- Filter Status -->
+        <div class="col-md-3">
+            <label for="status"
+                   class="form-label fw-semibold">
+                Status OPD
+            </label>
+
+            <select name="status"
+                    id="status"
+                    class="form-select">
+
+                <option value=""
+                    @selected(($status ?? '') === '')>
+                    Semua Status
+                </option>
+
+                <option value="1"
+                    @selected(($status ?? '') === '1')>
+                    Aktif
+                </option>
+
+                <option value="0"
+                    @selected(($status ?? '') === '0')>
+                    Nonaktif
+                </option>
+
+            </select>
+        </div>
+
+        <!-- Tombol -->
+        <div class="col-md-3">
+            <div class="d-flex gap-2">
+
+                <button type="submit"
+                        class="btn btn-primary flex-grow-1">
+                    <i class="bi bi-search me-1"></i>
+                    Cari
+                </button>
+
+                <a href="{{ route('opds.index') }}"
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>
+                    Reset
+                </a>
+
+            </div>
+        </div>
+
+    </div>
+
+</form>
+<!-- Akhir Form Pencarian -->
+
 
             <div class="table-responsive">
 
@@ -241,10 +336,25 @@
 
                 </table>
 
-            </div>
+                <!-- Pagination Master OPD -->
+                @if($opds->hasPages())
+                    <div class="d-flex justify-content-between align-items-center mt-4 flex-wrap gap-2">
 
-            <!-- Pagination -->
-            {{ $opds->links('pagination::bootstrap-5') }}
+                        <div class="text-muted small">
+                            Menampilkan {{ $opds->firstItem() }}
+                            sampai {{ $opds->lastItem() }}
+                            dari {{ $opds->total() }} data OPD
+                        </div>
+
+                        <div>
+                            {{ $opds->links('pagination::bootstrap-5') }}
+                        </div>
+
+                    </div>
+                @endif
+
+
+            </div>
 
         </div>
 

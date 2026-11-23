@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\OpdController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OpdImportController;
+use App\Http\Controllers\OpdExportController;
 
 // Halaman utama
 Route::get('/', function () {
@@ -44,6 +45,12 @@ Route::middleware('auth')->group(function () {
     // Konfirmasi penyimpanan Excel ke MySQL
     Route::post('/opds/import/confirm', [OpdImportController::class, 'confirm'])
         ->name('opds.import.confirm');
+
+    
+    // Export Excel Master OPD
+    Route::get('/opds/export', [OpdExportController::class, 'export'])
+        ->name('opds.export');
+
 
     // Master OPD
     Route::resource('opds', OpdController::class);
