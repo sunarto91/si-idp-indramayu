@@ -27,7 +27,7 @@ class AuthController extends Controller
             . '|' . $request->ip();
 
         // Membatasi percobaan login
-        if (RateLimiter::tooManyAttempts($key, 3)) {
+        if (RateLimiter::tooManyAttempts($key, 5)) {
             $seconds = RateLimiter::availableIn($key);
 
             return back()->withErrors([
