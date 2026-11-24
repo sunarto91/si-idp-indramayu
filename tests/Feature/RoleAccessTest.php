@@ -262,4 +262,148 @@ public function test_pns_cannot_edit_update_or_delete_opd(): void
 }
 
 
+/**
+ * Super Admin dapat membuka halaman administrasi OPD.
+ */
+public function test_super_admin_can_open_opd_administration(): void
+{
+    $user = $this->makeUserWithRole('super_admin');
+
+    $this->actingAs($user);
+
+    $this->get('/opds/create')->assertOk();
+
+    $this->get('/opds/import')->assertOk();
+}
+
+/**
+ * Operator dapat menambahkan OPD baru.
+ */
+public function test_operator_can_create_opd(): void
+{
+    $user = $this->makeUserWithRole('operator');
+
+    $this->actingAs($user);
+
+    $this->post('/opds', [
+        'kode_opd' => 'TEST-OPERATOR-001',
+        'nama_opd' => 'OPD Dummy Operator',
+        'singkatan' => 'TEST',
+        'alamat' => 'Alamat Pengujian',
+        'is_active' => 1,
+    ])->assertRedirect(route('opds.index'));
+
+    $this->assertDatabaseHas('opds', [
+        'kode_opd' => 'TEST-OPERATOR-001',
+        'nama_opd' => 'OPD Dummy Operator',
+    ]);
+}
+
+
+/**
+ * Operator dapat memperbarui data OPD.
+ */
+public function test_operator_can_update_opd(): void
+{
+    $user = $this->makeUserWithRole('operator');
+
+    $opdId = \Illuminate\Support\Facades\DB::table('opds')
+        ->insertGetId([
+            'kode_opd' => 'TEST-UPDATE-001',
+            'nama_opd' => 'OPD Sebelum Diperbarui',
+            'singkatan' => 'TEST',
+            'alamat' => 'Alamat Awal',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+    $this->actingAs($user)
+        ->put("/opds/{$opdId}", [
+            'kode_opd' => 'TEST-UPDATE-001',
+            'nama_opd' => 'OPD Setelah Diperbarui',
+            'singkatan' => 'TEST',
+            'alamat' => 'Alamat Baru',
+            'is_active' => 1,
+        ])
+        ->assertRedirect(route('opds.index'));
+
+    $this->assertDatabaseHas('opds', [
+        'id' => $opdId,
+        'nama_opd' => 'OPD Setelah Diperbarui',
+        'alamat' => 'Alamat Baru',
+    ]);
+}
+
+/**
+ * Operator dapat menghapus data OPD.
+ */
+public function test_operator_can_delete_opd(): void
+{
+    $user = $this->makeUserWithRole('operator');
+
+    $opdId = \Illuminate\Support\Facades\DB::table('opds')
+        ->insertGetId([
+            'kode_opd' => 'TEST-DELETE-001',
+            'nama_opd' => 'OPD Dummy Akan Dihapus',
+            'singkatan' => 'TEST',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+    $this->actingAs($user)
+        ->delete("/opds/{$opdId}")
+        ->assertRedirect(route('opds.index'));
+
+    $this->assertDatabaseMissing('opds', [
+        'id' => $opdId,
+    ]);
+}
+
+
+/**
+ * Operator dapat membuka halaman Import Excel.
+ */
+public function test_operator_can_open_import_excel(): void
+{
+    $user = $this->makeUserWithRole('operator');
+
+    $this->actingAs($user)
+        ->get(route('opds.import.create'))
+        ->assertOk()
+        ->assertSee('Import Excel');
+}
+
+/**
+ * Operator dapat mengunduh Export Excel Master OPD.
+ */
+public function test_operator_can_export_excel(): void
+{
+    $user = $this->makeUserWithRole('operator');
+
+    $response = $this->actingAs($user)
+        ->get(route('opds.export'));
+
+    // Export harus berhasil.
+    $response->assertOk();
+
+    // Browser harus menerima respons unduhan.
+    $disposition = $response->headers->get(
+        'Content-Disposition'
+    );
+
+    $this->assertNotNull($disposition);
+
+    $this->assertStringContainsString(
+        'attachment',
+        strtolower($disposition)
+    );
+
+    $this->assertStringContainsString(
+        '.xlsx',
+        strtolower($disposition)
+    );
+}
+
 }
