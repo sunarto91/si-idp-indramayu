@@ -37,12 +37,22 @@ class AuthController extends Controller
         }
 
         // Memeriksa email dan password
-        if (Auth::attempt($credentials)) {
+        if (Auth::attempt([
+                'email' => $credentials['email'],
+                'password' => $credentials['password'],
+                'is_active' => true,
+            ])) {
 
             RateLimiter::clear($key);
 
-            $request->session()->regenerate();
 
+            // Catat waktu login terakhir.
+            $request->user()->forceFill([
+                'last_login_at' => now(),
+            ])->save();
+
+             // Regenerasi session untuk keamanan.
+            $request->session()->regenerate();
             return redirect()->intended(route('dashboard'));
         }
 

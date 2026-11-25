@@ -1,17 +1,28 @@
 <?php
+
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\OpdController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\OpdController;
 use App\Http\Controllers\OpdImportController;
 use App\Http\Controllers\OpdExportController;
 
-// Halaman utama
+/*
+|--------------------------------------------------------------------------
+| Halaman Utama
+|--------------------------------------------------------------------------
+*/
+
 Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
-// Halaman untuk pengguna yang belum login
+/*
+|--------------------------------------------------------------------------
+| Halaman Guest (Belum Login)
+|--------------------------------------------------------------------------
+*/
+
 Route::middleware('guest')->group(function () {
 
     Route::get('/login', [AuthController::class, 'showLogin'])
@@ -22,42 +33,59 @@ Route::middleware('guest')->group(function () {
 
 });
 
-// Halaman yang membutuhkan autentikasi
+/*
+|--------------------------------------------------------------------------
+| Halaman yang Membutuhkan Login
+|--------------------------------------------------------------------------
+*/
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active.user'])->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
-    // Import Excel - harus di atas resource OPD
-    Route::get('/opds/import', [OpdImportController::class, 'create'])
-        ->name('opds.import.create');
+    /*
+    |--------------------------------------------------------------------------
+    | Master OPD — Super Admin dan Operator
+    |--------------------------------------------------------------------------
+    */
 
-     // Proses upload Excel
-    Route::post('/opds/import', [OpdImportController::class, 'store'])
-        ->name('opds.import.store');
-    
-    // Preview data Excel
-    Route::get('/opds/import/preview', [OpdImportController::class, 'preview'])
-        ->name('opds.import.preview');
-    
-    // Konfirmasi penyimpanan Excel ke MySQL
-    Route::post('/opds/import/confirm', [OpdImportController::class, 'confirm'])
-        ->name('opds.import.confirm');
+    Route::middleware('role:super_admin,operator')
+        ->group(function () {
 
-    
-    // Export Excel Master OPD
-    Route::get('/opds/export', [OpdExportController::class, 'export'])
-        ->name('opds.export');
+            // Form Import Excel
+            Route::get('/opds/import', [OpdImportController::class, 'create'])
+                ->name('opds.import.create');
 
+            // Proses Upload Excel
+            Route::post('/opds/import', [OpdImportController::class, 'store'])
+                ->name('opds.import.store');
 
-    // Master OPD
-    Route::resource('opds', OpdController::class);
+            // Preview Excel
+            Route::get('/opds/import/preview', [OpdImportController::class, 'preview'])
+                ->name('opds.import.preview');
 
-    // Logout
+            // Konfirmasi Import ke MySQL
+            Route::post('/opds/import/confirm', [OpdImportController::class, 'confirm'])
+                ->name('opds.import.confirm');
+
+            // Export Excel
+            Route::get('/opds/export', [OpdExportController::class, 'export'])
+                ->name('opds.export');
+
+            // CRUD Master OPD
+            Route::resource('opds', OpdController::class);
+
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Logout — Semua Pengguna Login
+    |--------------------------------------------------------------------------
+    */
+
     Route::post('/logout', [AuthController::class, 'logout'])
         ->name('logout');
 
 });
-
